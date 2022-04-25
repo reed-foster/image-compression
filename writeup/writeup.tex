@@ -2,10 +2,12 @@
 \usepackage{cite}
 \usepackage{hyperref}
 \usepackage{graphicx}
-\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{amsmath,amssymb,amsfonts,bm}
 \usepackage{algorithmic}
 \usepackage{textcomp}
 \usepackage{xcolor}
+\usepackage{subcaption}
+\usepackage[justification=centering]{caption}
 
 \newcommand*{\vertbar}{\rule[-1ex]{0.5pt}{1.5em}}
 \newcommand*{\horzbar}{\rule[0.5ex]{1.5em}{0.5pt}}
@@ -37,11 +39,18 @@ In this paper, I will discuss several methods of image compression and evaluate 
 
 \section{Background}
 
+\subsection{Perception}
+Images are often represented as 3 separate channels of the red, green, and blue intensity at each pixel in the image.
+However, because humans are more sensitive to some colors but not others, and are more sensitive to different hues when they are of different brightnesses or intensities, this is not the best way to encode images for compression.
+JPEG uses the $YC_bC_r$ image representation, where $Y$ is the luma or brightness component and $C_b$ and $C_r$ are the blue and red difference components (i.e. $C_b = B - Y$, $C_r = R - Y$).
+The human eye is most sensitive to the information in the $Y$ channel, but less sensitive to changes in red and blue color, so this leaves an opportunity to apply higher compression to the $C_b$ and $C_r$ channels to achieve higher compression ratios while maintaining similar image quality.
+
 Humans perceive the different spatial frequencies in images with varying degrees of sensitivity.
 % Cite: Human Visual System Based Wavelet Decomposition for Image Compression (Thomas O'Rourke)
 State of the art lossy image compression systems (e.g. JPEG and JPEG2000 from the Joint Photographic Experts Group) leverage this to dramatically shrink the number of bits required to encode an image while maintaining a strong resemblance of the original image.
 % Cite something from JPEG
-In order to do this, the original image is transformed into a frequency representation.
+In order to do this, the original image is transformed into a frequency representation and the frequency representation is quantized in order to reduce the number of bits required to store it.
+The quantized frequency-domain representation is then passed through lossless entropy coding to produce a compressed bitstream that can be stored or transmitted and then decoded to reconstruct the original image.
 The two most popular approaches for this transformation are the discrete cosine transform (DCT) and discrete wavelet transform (DWT).
 
 \subsection{Discrete Transforms in 1D and 2D}
@@ -51,21 +60,22 @@ Often, these basis vectors are chosen to be orthogonal (such as in the DCT and m
 A one-dimensional transform of an input vector $\mathbf{x}$ can be represented as:
 
 \begin{IEEEeqnarray}{rCl}
-    \mathbf{\widetilde{x}} & = & \mathbf{\Omega}\mathbf{x} \\
-    \mathbf{\Omega} & = & \begin{pmatrix}\horzbar~\omega^T_1~\horzbar\\\vdots\\\horzbar~\omega^T_N~\horzbar\end{pmatrix}
+    \mathbf{\widetilde{x}} & = & \mathbf{\Phi}\mathbf{x} \\
+    \mathbf{\Phi} & = & \begin{pmatrix}\horzbar~\bm{\varphi}^T_1~\horzbar\\\vdots\\\horzbar~\bm{\varphi}^T_N~\horzbar\end{pmatrix}
 \end{IEEEeqnarray}
 
-Where $\omega_k$ are the basis vectors of the transform.
-For a discrete fourier transform, these are simply complex exponentials, with different frequencies for different basis vectors:
+where $\bm{\varphi}_k$ are the basis vectors of the transform.
+Each of the elements $\widetilde{x}_k$ of $\mathbf{\widetilde{x}}$ is a coefficient which measures the degree to which the input signal $\mathbf{x}$ is orthogonal to the corresponding basis vector $\bm{\varphi}_k$.
+For a discrete fourier transform, these basis functions are simply complex exponentials, with different frequencies for different basis vectors:
 
 \begin{equation}
-    \omega_k = \begin{pmatrix} 1, e^{-\frac{2i\pi k}{N}}, e^{-\frac{4i\pi k}{N}}, \dots e^{\frac{2(N-1)\pi k}{N}} \end{pmatrix}^T
+    \bm{\varphi}_k = \begin{pmatrix} 1, e^{-\frac{2i\pi k}{N}}, e^{-\frac{4i\pi k}{N}}, \dots e^{\frac{2(N-1)\pi k}{N}} \end{pmatrix}^T
 \end{equation}
 
-Intuitively, a discrete transform of 2D data (e.g. a matrix) is performed by first taking a discrete transform of each individual column:
+Intuitively, a discrete transform of 2D data (e.g. a matrix) can be performed by first taking a discrete transform of each individual column:
 \begin{equation}
     \mathbf{\widetilde{X}}_c = \begin{pmatrix}
-        \horzbar~\omega^T_1~\horzbar\\\vdots\\\horzbar~\omega^T_N~\horzbar
+        \horzbar~\bm{\varphi}^T_1~\horzbar\\\vdots\\\horzbar~\bm{\varphi}^T_N~\horzbar
     \end{pmatrix}
     \begin{pmatrix}
         \vertbar && \vertbar \\
@@ -76,30 +86,158 @@ Intuitively, a discrete transform of 2D data (e.g. a matrix) is performed by fir
 
 Then taking a discrete transform of each row of the partially transformed matrix:
 \begin{IEEEeqnarray}{rCl}
-    \mathbf{\widetilde{X}}^T & = & \mathbf{\Omega}\mathbf{\widetilde{X}}^T_c \\
-    \mathbf{\widetilde{X}} & = & \mathbf{\Omega}\mathbf{X}_c\mathbf{\Omega}^T
+    \mathbf{\widetilde{X}}^T & = & \mathbf{\Phi}\mathbf{\widetilde{X}}^T_c \\
+    \mathbf{\widetilde{X}} & = & \mathbf{\Phi}\mathbf{X}\mathbf{\Phi}^T
 \end{IEEEeqnarray}
 
-\subsection{Discrete Cosine Transform}
+\subsection{Discrete Cosine Transform and Discrete Wavelet Transform}
 
-For a discrete cosine transform, the basis vectors are given by
+For a discrete cosine transform, the basis vectors are evenly spaced in frequency.
+They are given by:
 
 \[
-    \omega_k = \begin{pmatrix} \cos\frac{\pi k}{2N}, \cos\frac{3\pi k}{2N}, \dots \cos\frac{(2N-1)\pi k}{2N} \end{pmatrix}^T
+    \bm{\varphi}_k = \begin{pmatrix} \cos\frac{\pi k}{2N}, \cos\frac{3\pi k}{2N}, \dots \cos\frac{(2N-1)\pi k}{2N} \end{pmatrix}^T
 \]
-\subsection{Discrete Wavelet Transform}
+
+The angular frequency of the $k$th basis vector is $k\pi/N$ and the phase offset is $k\pi/2N$.
+
+\begin{figure}[htbp]
+    %\centerline{\includegraphics[width=0.8\columnwidth]{images/mandrill_gray.png}}
+    \centering
+    \begin{subfigure}{0.7\columnwidth}
+        \includegraphics[width=\textwidth]{images/mandrill_gray.png}
+        \caption{Grayscale Image of Mandrill}
+        \label{fig:origGray}
+    \end{subfigure}
+    \par\bigskip
+    \begin{subfigure}{0.7\columnwidth}
+        \includegraphics[width=\textwidth]{images/mandrill_linDWT.png}
+        \caption{Linear Scale DWT of Image}
+        \label{fig:linDWTGray}
+    \end{subfigure}
+    \par\bigskip
+    \begin{subfigure}{0.7\columnwidth}
+        \includegraphics[width=\textwidth]{images/mandrill_logDWT.png}
+        \caption{Log Scale DWT of Image}
+        \label{fig:logDWTGray}
+    \end{subfigure}
+    \caption{Discrete Wavelet Transform of an image. The Cohen-Daubechies-Feauveau 9/7 (cdf97) wavelet used in JPEG2000 was selected for this transform.}
+    \label{fig:dwtImage}
+\end{figure}
+
+Unlike the discrete cosine transform, which allocates equal bandwidth for each coefficient, discrete wavelet transform basis vectors (or wavelets) trade off frequency and spatial resolution.
+The wavelets which have low frequency content (which will be maximally orthogonal to signals with low frequency and thus yield a large transform coefficient value) have poor spatial resolution but very fine frequency resolution.
+Similarly, basis vectors with high frequency content are broadband in nature due to their temporally-localized structure.
+% Cite: Julia Wavelets implementation?
+The discrete wavelet transform is typically implemented as a set of cascaded filters and downsamplers.
+The input signal is passed through a quadrature mirror filter consisting of a high pass and low pass filter.
+Both filter outputs are decimated by a factor of 2, and the low pass filter output is recursively cascaded through another quadrature mirror filter pair.
+This pattern of downsampling and recursively filtering the low pass output can be seen in Figure \ref{fig:logDWTGray}.
+Because this is in two dimensions, each portion of the image is filtered twice: once by row and once by column.
 
 \subsection{Singular Value Decomposition}
 
+A matrix can be represented as a singular value decomposition.
+Singular values $\sigma_i$ of a matrix $\mathbf{A}$ satisfy
+
+\begin{equation}
+    \mathbf{A}\mathbf{v}_i = \sigma_i\mathbf{u}_i
+\end{equation}
+
+with orthonormal $\mathbf{v}_i$ and $\mathbf{u}_i$ forming an eigenbasis for $\mathbf{A}^T\mathbf{A}$ and $\mathbf{AA}^T$ (respectively).
+The singular value decomposition of an $m\times n$ matrix $\mathbf{A}$ of rank $r$ can be written as so
+
+\begin{equation}
+    \mathbf{A} = 
+    \begin{pmatrix}
+        \vertbar && \vertbar \\
+        \mathbf{u}_1 & \cdots & \mathbf{u}_m \\
+        \vertbar && \vertbar \\
+    \end{pmatrix}
+    \begin{pmatrix}
+        \sigma_1 &&&\text{\Large0} \\ 
+        & \ddots && \\
+        && \sigma_r & \\
+        \text{\Large0}&&& 0 \\
+    \end{pmatrix}
+    \begin{pmatrix}\horzbar~\bm{v}^T_1~\horzbar\\\vdots\\\horzbar~\bm{v}^T_n~\horzbar\end{pmatrix}
+\end{equation}
+
+Due to Eckart and Young, we know that the rank $k$ matrix $\mathbf{A}_k$ which is constructed from the first $k$ singular values of $\mathbf{A}$ minimizes the mean square error $\left\lVert\mathbf{A}-\mathbf{A}_k\right\rVert$.
+% cite Eckart + Young
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.7\columnwidth]{images/mandrill_SVD.png}
+    \caption{Singular Values of Mandrill Image}
+    \label{fig:svd}
+\end{figure}
+
+
+As shown in Figure \ref{fig:svd}, some singular values are very small compared to the largest singular values.
+This leaves an opportunity for image compression through rank reduction.
+The number of nonzero values required to store the SVD of a matrix can be calculated from the number of nonzero values in the 3 matrices of the SVD.
+In $\mathbf{U}$, each basis vector $\mathbf{u}_i \in \mathbb{R}^m$ has $m$ elements.
+For a rank $k$ truncation of the SVD, only $\mathbf{u}_1$ to $\mathbf{u}_k$ are needed, meaning $\mathbf{U}$ can be stored with $mk$ nonzero values.
+Similarly, $nk$ nonzero values are required to store $\mathbf{V}^T$, and $k$ values to store the diagonal matrix of singular values $\bm{\Sigma}$.
+Thus, the SVD can be compactly stored with $k(m + n + 1)$ nonzero values, provided $k \ll m,n$.
+Storing the original $m\times n$ matrix of rank $r$ takes $mn$ nonzero values, so the rank-reduced SVD representation is not useful for compression if $k \approx m,n$.
+
 \subsection{Lossless Compression - Entropy Coding}
+
+The focus of this paper is not in entropy coding and lossless compression so there will be minimal discussion of these topics beyond this section.
+Rank truncation and quantization reduce the number of nonzero values required to represent an image, but in order to actually store the information required to reconstruct the image, this sparsity must be leveraged by an entropy coding scheme.
+JPEG (the 1992 standard) uses run length encoding and Huffman codes to create a compact representation of the quantized DCT representation of the image.
+JPEG2000 uses arithmetic coding.
+Because run length encoding is quite simple to understand and implement, I selected to also perform run length encoding and use the bitlength of a run-length-coded image as a compression ratio metric.
+However, I will also report the sparsity of the transform-domain representation of the image (relative reduction in nonzero values in the image) as a compression ratio metric.
 
 \section{Methods}
 
 \subsection{Proposed Image Compression Techniques}
 
+I implemented two DCT-based image compression techniques: one using the JPEG tiling and quantization scheme and one using an adaptive thresholding scheme.
+I also implemented several DWT-based schemes.
+I chose the Cohen-Daubechies-Feauveau 9/7 (cdf97) wavelet for computing the DWT because it is used in the JPEG2000 compression algorithm.
+One is quite similar to JPEG2000, and uses scalar quantization.
+Another uses the same adaptive thresholding scheme as in the DCT-thresholding compression technique.
+I also implemented a rank-truncation method which uses the SVD of the transform-domain coefficients to compress the image.
+Finally, I implemented a hybrid rank-truncation and adaptive thresholding method.
+
 \subsection{Quantifying Image Quality}
 
+The most common metric to quantify image quality is the mean squared error of the image, which is defined for a single channel as
+
+\begin{equation}
+    MSE_{1} = \frac{1}{mn}\sum_{m,n}\left(\mathbf{X}_{m,n} - \mathbf{\hat{X}}_{m,n}\right)^2
+\end{equation}
+
+where $\mathbf{X}$ is the original image and $\mathbf{\hat{X}}$ is the compressed image.
+The mean squared error for the euclidean RGB distance between two colors is calculated as
+
+\begin{equation}
+    MSE_{RGB} = \frac{1}{3mn}\sum_{\mathbf{X}\in\{\mathbf{R},\mathbf{G},\mathbf{B}\}}\sum_{m,n}\left(\mathbf{X}_{m,n} - \mathbf{\hat{X}}_{m,n}\right)^2
+\end{equation}
+
+Finally, based on the perceptual model from CIE for $\Delta E$ (CIEDE2000), a metric of perceived color similarity, the perceived MSE can be calculated as
+
+\begin{equation}
+    MSE_{\Delta E} = \frac{1}{mn}\sum_{m,n}\Delta E\left(\mathbf{X}, \mathbf{\hat{X}}\right).^2
+\end{equation}
+
+where $\Delta E(\mathbf{X}, \mathbf{\hat{X}})$ computes the perceived difference between the 3-channel colors $\mathbf{X}$ and $\mathbf{\hat{X}}$.
+
+Often, these mean squared error quantities are reported as a peak signal-to-noise ratio or PSNR:
+
+\begin{equation}
+    PSNR = 10\log_{10}\left(\frac{MAX_I^2}{MSE}\right)
+\end{equation}
+
+where $MAX_I$ is the maximum pixel value of the input $\mathbf{X}$ used to compute the mean squared error.
+
 \subsection{Estimating Compression Ratio}
+
+As mentioned in the section on Entropy Coding, the focus of this work is not on lossless compression techniques, so the compression ratio of these methods will be estimated with the relative increase in sparsity of the transform of the image and the number of bits required to store a run length encoding of the transform.
 
 \section{Results}
 
