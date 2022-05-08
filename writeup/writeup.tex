@@ -34,7 +34,8 @@
 Image compression is an important area of study due to the ever-increasing consumption of media and explosion of big data image processing \cite{imgProcessingTinkuAcharya}, \cite{scnn}.
 The goal of lossy image compression is to preserve the perceptually relevant portions of an image so that the image appears unaltered while drastically reducing the number of bits required to store the image.
 
-In this paper, I will discuss several methods of image compression and evaluate their performance on metrics of image quality and compression ratio.
+In this paper, I will discuss several methods of image compression based on linear transformations and exploitation of data sparsity in the transform domain.
+I will present an evaluation of their performance on metrics of reconstructed image quality and compression ratio.
 
 \section{Background}
 
@@ -42,18 +43,19 @@ In this paper, I will discuss several methods of image compression and evaluate 
 Images are often represented as 3 separate channels of the red, green, and blue intensity at each pixel in the image.
 However, because humans are more sensitive to some colors but not others, and are more sensitive to different hues when they are of different brightnesses or intensities, this is not the best way to encode images for compression.
 JPEG uses the $YC_bC_r$ image representation, where $Y$ is the luma or brightness component and $C_b$ and $C_r$ are the blue and red difference components (i.e. $C_b = B - Y$, $C_r = R - Y$).
-The human eye is most sensitive to the information in the $Y$ channel, but less sensitive to changes in red and blue color, so this leaves an opportunity to apply higher compression to the $C_b$ and $C_r$ channels to achieve higher compression ratios while maintaining similar image quality.
+The human eye is most sensitive to the information in the $Y$ channel, but less sensitive to changes in red and blue color, so this leaves an opportunity to apply higher compression to the $C_b$ and $C_r$ channels to achieve higher compression ratios while maintaining similar image quality \cite{hvsYcbcr}.
+% cite
 
 Humans perceive the different spatial frequencies in images with varying degrees of sensitivity \cite{hvsWavelet}.
 State of the art lossy image compression systems (e.g. JPEG and JPEG2000 from the Joint Photographic Experts Group) leverage this to dramatically shrink the number of bits required to encode an image while maintaining a strong resemblance of the original image \cite{jpegStd}.
-In order to do this, the original image is transformed into a frequency representation and the frequency representation is quantized in order to reduce the number of bits required to store it.
+In order to do this, the original image is transformed into a frequency representation and the frequency representation is quantized, reducing the number of bits required to store it.
 The quantized frequency-domain representation is then passed through lossless entropy coding to produce a compressed bitstream that can be stored or transmitted and then decoded to reconstruct the original image.
-The two most popular approaches for this transformation are the discrete cosine transform (DCT) and discrete wavelet transform (DWT).
+The two most popular approaches for this transform are the discrete cosine transform (DCT) and discrete wavelet transform (DWT).
 
 \subsection{Discrete Transforms in 1D and 2D}
 
 A frequency transform in general can be viewed as a series of inner products between the input vector and a set of basis vectors.
-Often, these basis vectors are chosen to be orthogonal (such as in the DCT and many variants of the DWT).
+These basis vectors are typically orthogonal (such as in the DCT and many variants of the DWT --- some variants of the DWT are bi-orthogonal, meaning they use different wavelet basis vectors for the forward and reverse transforms).
 A one-dimensional transform of an input vector $\mathbf{x}$ can be represented as:
 
 \begin{IEEEeqnarray}{rCl}
@@ -101,11 +103,11 @@ The angular frequency of the $k$th basis vector is $k\pi/N$ and the phase offset
 
 \begin{figure}[htbp]
     \centering
-    \subfloat[Grayscale Image of Mandrill]{\includegraphics[width=0.8\columnwidth]{images/mandrill_gray.png}\label{fig:origGray}}
+    \subfloat[Grayscale Image of Mandrill]{\includegraphics[width=0.7\columnwidth]{images/mandrill_gray.png}\label{fig:origGray}}
     \par\bigskip
-    \subfloat[Linear Scale DWT of Image]{\includegraphics[width=0.8\columnwidth]{images/mandrill_linDWT.png}\label{fig:linDWTGray}}
+    \subfloat[Linear Scale DWT of Image]{\includegraphics[width=0.7\columnwidth]{images/mandrill_linDWT.png}\label{fig:linDWTGray}}
     \par\bigskip
-    \subfloat[Linear Scale DWT of Image]{\includegraphics[width=0.8\columnwidth]{images/mandrill_logDWT.png}\label{fig:logDWTGray}}
+    \subfloat[Linear Scale DWT of Image]{\includegraphics[width=0.7\columnwidth]{images/mandrill_logDWT.png}\label{fig:logDWTGray}}
     \caption{Discrete Wavelet Transform of an image. The Cohen-Daubechies-Feauveau 9/7 (cdf97) wavelet used in JPEG2000 was selected for this transform.}
     \label{fig:dwtImage}
 \end{figure}
@@ -209,6 +211,8 @@ The DWT adaptive thresholding method operates identically to the DCT thresholdin
 \subsection{SVD Compression}
 Using the SVD of the original image as a technique for image compression yields quite poor results for useful compression ratios (see Figure \ref{fig:svd}; the number of negligible singular values is quite small).
 Instead, the SVD of the discrete wavelet transform of the entire image is used.
+This method actually produced identical results to taking the SVD of the original image.
+The reason for this is discussed later in the paper.
 
 \subsection{Quantifying Image Quality}
 
@@ -419,7 +423,8 @@ It's possible that using the entropy of the different subbands of the wavelet tr
 \begin{thebibliography}{00}
     \bibitem{imgProcessingTinkuAcharya} T. Acharya and A. K. Ray, ``Image Processing: Principles and Applications" 1st ed. \textit{Wiley}, pp 329 (2005)
     \bibitem{scnn} A. Parashar, et. al., ``SCNN: An Acclerator for Compressed-sparse Convolutional Neural Networks", \textit{Proceedings of ISCA '17}, pp. 27-40 (2017)
-    \bibitem{hvsWavelet} T. P. O'Rourke and R. L. Stevenson,``Human Visual System Based Wavelet Decomposition for Image Compression,'' \textit{Journ. Visual Comm. and Image Representation}, vol. 6, pp. 109-121, (1955)
+    \bibitem{hvsYcbcr} A. Roy, A. K. Maiti, K. Ghosh, ``An HVS Inspired Robust Non-blind Watermarking Scheme in YCbCr Color Space," \textit{Intl. Journ. of Images and Graphics}, vol. 18, 1850015 (2018).
+    \bibitem{hvsWavelet} T. P. O'Rourke and R. L. Stevenson,``Human Visual System Based Wavelet Decomposition for Image Compression,'' \textit{Journ. Visual Comm. and Image Representation}, vol. 6, pp. 109-121, (1955).
     \bibitem{jpegStd} G. Hudson, A. L{\'e}ger, B. Niss, I. Sebesty{\'e}n, J. Vaaben, ``JPEG-1 standard 25 years: past, present, and future reasons for a success,", \textit{Journ. Electronic Imaging}, vol. 27, (2018).
     \bibitem{strang} G. Strang, ``Linear Algebra and Learning from Data", pp. 72-74 (2019).
 \end{thebibliography}
